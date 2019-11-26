@@ -1,0 +1,90 @@
+---
+title: "Time Series - IoT Project"
+author: "Letícia Marçal"
+date: "11/12/2019"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE, message = F, warning = F)
+```
+
+
+```{r setup, include=FALSE}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(caret)
+library(lubridate)
+library(devtools)
+library(scales)
+library(grid)
+library(tidyverse)
+library(plotly)
+library(ggfortify)
+
+dados_energia <- read.csv2(file = "C:/Users/letic/Documents/UbiqumR/IoT Project Data and Code/Data/household_power_consumption.txt", 
+                           sep = ";", na.strings = c("?"),stringsAsFactors = F)
+
+dados_energia2 <- na.omit(dados_energia)
+
+dados_energia3 <- cbind(dados_energia2, paste(dados_energia2$Date, dados_energia2$Time), stringsAsFactors=FALSE)
+
+
+colnames(dados_energia3)[10] <-"DateTime"
+
+
+dados_energia3 <- dados_energia3[,c(ncol(dados_energia3), 1:(ncol(dados_energia3)-1))]
+
+dados_energia3$DateTime <- as.POSIXct(dados_energia3$DateTime,
+                                      "%d/%m/%Y %H:%M:%S",
+                                      tz = "GMT")
+
+dados_energia3$Sub_metering_1 <-  as.numeric(dados_energia3$Sub_metering_1)
+dados_energia3$Sub_metering_2 <-  as.numeric(dados_energia3$Sub_metering_2)
+dados_energia3$Sub_metering_3 <-  as.numeric(dados_energia3$Sub_metering_3)
+dados_energia3$Global_active_power <- as.numeric(dados_energia3$Global_active_power)
+dados_energia3$Global_reactive_power <- as.numeric(dados_energia3$Global_reactive_power)
+dados_energia3$Voltage <- as.numeric(dados_energia3$Voltage)
+dados_energia3$Global_intensity <- as.numeric(dados_energia3$Global_intensity)
+
+dados_energia3 %>%
+  dplyr::mutate(minute = lubridate::minute(DateTime),
+                hours = lubridate::hour(DateTime),
+                day = lubridate::day(DateTime),
+                weekday = weekdays(DateTime),
+                week = lubridate::week(DateTime),
+                month = lubridate::month(DateTime), 
+                year = lubridate::year(DateTime)) -> dados_energia4
+
+dados_energia4 <- dados_energia4[, c(1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 4:10)]
+
+dados_energia4 %>% 
+  mutate(global_power = Global_active_power * 1000/60,
+    global_minus_sub = Global_active_power * 1000/60 - Sub_metering_1 - Sub_metering_2 - Sub_metering_3,
+    all_sub = Sub_metering_1 + Sub_metering_2 + Sub_metering_3) -> dados_energia5
+
+dados_energia5 %>% group_by(hours) %>% 
+                   summarise(area1 = sum(Sub_metering_1),
+                             area2 = sum(Sub_metering_2),
+                             area3 = sum(Sub_metering_3),
+                             total_house = sum(global_power),
+                             others = sum(global_minus_sub),
+                             all_areas = sum(all_sub)) -> dados_plot
+```
+
+
+```{r}
+house070809weekly <- filter(dados_energia5, !year == 2006 & !year == 2010, weekday == "Monday" & hours == 20 & minute == 1)
+
+tsSM3_070809weekly <- ts(house070809weekly$Sub_metering_3, frequency=52, start=c(2007,1))
+
+autoplot(tsSM3_070809weekly, ts.colour = 'red', xlab = "Time", ylab = "Watt Hours", main = "Temperature Room")
+```
+
+```{r}
+plot.ts(tsSM3_070809weekly, xlab = "Time", ylab = "Watt Hours", main = "Temperature Room")
+```
+
+
+
